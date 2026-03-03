@@ -1,10 +1,12 @@
 # llmpm — LLM Package Manager
 
-> Command-line package manager for open-sourced large language models. Download and run 100,000+ models, and share LLMs with a single command
+> Command-line package manager for open-sourced large language models. Download and run 10,000+ models, and share LLMs with a single command.
 
 `llmpm` is a CLI package manager for large language models, inspired by pip and npm. Your command line hub for open-source LLMs. We’ve done the heavy lifting so you can discover, install, and run models instantly.
 
 Models are sourced from [HuggingFace Hub](https://huggingface.co), [Ollama](https://ollama.com/search) & [Mistral AI](https://docs.mistral.ai/getting-started/models).
+
+**Explore a Suite of Models at [llmpm.co](https://llmpm.co/models) →**
 
 Supports:
 
@@ -24,13 +26,20 @@ Supports:
 pip install llmpm
 ```
 
+The pip install is intentionally lightweight — it only installs the CLI tools needed to bootstrap. On first run, `llmpm` automatically creates an isolated environment at `~/.llmpm/venv` and installs all ML backends into it, keeping your system Python untouched.
+
 ### via npm
 
 ```sh
 npm install -g llmpm
 ```
 
-> The npm package automatically installs the Python backend via pip.
+The npm package finds Python on your PATH, creates `~/.llmpm/venv`, and installs all backends into it during `postinstall`.
+
+### Environment isolation
+
+All `llmpm` commands always run inside `~/.llmpm/venv`.
+Set `LLPM_NO_VENV=1` to bypass this (useful in CI or Docker where isolation is already provided).
 
 ---
 
@@ -61,6 +70,8 @@ llmpm serve meta-llama/Llama-3.2-3B-Instruct
 | `llmpm list`                    | Show all installed models                                       |
 | `llmpm info <repo>`             | Show details about a model                                      |
 | `llmpm uninstall <repo>`        | Uninstall a model                                               |
+| `llmpm clean`                   | Remove the managed environment (`~/.llmpm/venv`)                |
+| `llmpm clean --all`             | Remove environment + all downloaded models and registry         |
 
 ---
 
@@ -106,7 +117,6 @@ This creates a `llmpm.json`:
 ```json
 {
   "name": "my-project",
-  "version": "1.0.0",
   "description": "",
   "dependencies": {}
 }
@@ -384,62 +394,7 @@ curl -X POST http://localhost:8080/v1/audio/speech \
   --output speech.wav
 ```
 
-### Response shapes
-
-**Text generation** (`/v1/chat/completions`, non-streaming):
-
-```json
-{
-  "id": "chatcmpl-abc123",
-  "object": "chat.completion",
-  "created": 1234567890,
-  "model": "meta-llama/Llama-3.2-3B-Instruct",
-  "choices": [
-    {
-      "index": 0,
-      "message": { "role": "assistant", "content": "Hello! How can I help?" },
-      "finish_reason": "stop"
-    }
-  ],
-  "usage": { "prompt_tokens": 12, "completion_tokens": 8, "total_tokens": 20 }
-}
-```
-
-**Text generation** (`/v1/chat/completions`, streaming — `"stream": true`):
-
-Each chunk is a Server-Sent Event:
-
-```
-data: {"id":"chatcmpl-abc123","object":"chat.completion.chunk","created":1234567890,
-       "model":"meta-llama/Llama-3.2-3B-Instruct",
-       "choices":[{"index":0,"delta":{"content":"Hello"},"finish_reason":null}]}
-
-data: [DONE]
-```
-
-**Text-to-speech** (`/v1/audio/speech`):
-
-The response body is raw audio bytes (`Content-Type: audio/wav`). Save directly to a file:
-
-```sh
-curl -X POST http://localhost:8080/v1/audio/speech \
-  -H "Content-Type: application/json" \
-  -d '{"input": "Hello world", "speed": 1.0}' \
-  --output speech.wav
-```
-
-Request body fields:
-
-| Field   | Type   | Default | Description                             |
-| ------- | ------ | ------- | --------------------------------------- |
-| `input` | string | —       | Text to synthesise (required)           |
-| `voice` | string | `null`  | Voice preset (model-dependent, optional)|
-| `speed` | number | `1.0`   | Speech rate multiplier                  |
-| `model` | string | first   | Model id when multiple models are loaded|
-
-The chat UI automatically renders an HTML5 `<audio>` player with a download link for text-to-speech responses.
-
-**Image generation** (`/v1/images/generations`):
+Response shape for image generation:
 
 ```json
 {
@@ -472,30 +427,95 @@ Requires a HuggingFace token (run `huggingface-cli login` or set `HF_TOKEN`).
 
 ## Backends
 
-| Model type              | Pipeline         | Backend                        | Extra install                     |
-| ----------------------- | ---------------- | ------------------------------ | --------------------------------- |
-| `.gguf` files           | Text generation  | llama.cpp via llama-cpp-python | `pip install llmpm[gguf]`         |
-| `.safetensors` / `.bin` | Text generation  | HuggingFace Transformers       | `pip install llmpm[transformers]` |
-| Diffusion models        | Image generation | HuggingFace Diffusers          | `pip install llmpm[diffusion]`    |
-| Vision models           | Image-to-text    | HuggingFace Transformers       | `pip install llmpm[vision]`       |
-| Whisper / ASR models    | Speech-to-text   | HuggingFace Transformers       | `pip install llmpm[audio]`        |
-| TTS models              | Text-to-speech   | HuggingFace Transformers       | `pip install llmpm[audio]`        |
+All backends (torch, transformers, diffusers, llama-cpp-python, …) are included in `pip install llmpm` by default and are installed into the managed `~/.llmpm/venv`.
 
-Install all backends at once:
+| Model type              | Pipeline         | Backend                        |
+| ----------------------- | ---------------- | ------------------------------ |
+| `.gguf` files           | Text generation  | llama.cpp via llama-cpp-python |
+| `.safetensors` / `.bin` | Text generation  | HuggingFace Transformers       |
+| Diffusion models        | Image generation | HuggingFace Diffusers          |
+| Vision models           | Image-to-text    | HuggingFace Transformers       |
+| Whisper / ASR models    | Speech-to-text   | HuggingFace Transformers       |
+| TTS models              | Text-to-speech   | HuggingFace Transformers       |
+
+### Selective backend install
+
+If you only need one backend (e.g. on a headless server), install without defaults and add just what you need:
 
 ```sh
-pip install llmpm[all]
+pip install llmpm --no-deps              # CLI only (no ML backends)
+pip install llmpm[gguf]                  # + GGUF / llama.cpp
+pip install llmpm[transformers]          # + text generation
+pip install llmpm[diffusion]             # + image generation
+pip install llmpm[vision]                # + vision / image-to-text
+pip install llmpm[audio]                 # + ASR + TTS
 ```
 
 ---
 
 ## Configuration
 
-| Variable      | Default    | Description                            |
-| ------------- | ---------- | -------------------------------------- |
-| `LLMPM_HOME`  | `~/.llmpm` | Root directory for models and registry |
-| `HF_TOKEN`    | —          | HuggingFace API token for gated models |
-| `LLPM_PYTHON` | `python3`  | Python binary used by the npm shim     |
+| Variable       | Default    | Description                                                  |
+| -------------- | ---------- | ------------------------------------------------------------ |
+| `LLMPM_HOME`   | `~/.llmpm` | Root directory for models and registry                       |
+| `HF_TOKEN`     | —          | HuggingFace API token for gated models                       |
+| `LLPM_PYTHON`  | `python3`  | Python binary used by the npm shim (fallback only)           |
+| `LLPM_NO_VENV` | —          | Set to `1` to skip venv isolation (CI / Docker / containers) |
+
+### Configuration examples
+
+**Use a HuggingFace token for gated models:**
+
+```sh
+HF_TOKEN=hf_your_token llmpm install meta-llama/Llama-3.2-3B-Instruct
+# or export for the session
+export HF_TOKEN=hf_your_token
+llmpm install meta-llama/Llama-3.2-3B-Instruct
+```
+
+**Skip venv isolation (CI / Docker):**
+
+```sh
+# Inline — single command
+LLPM_NO_VENV=1 llmpm serve meta-llama/Llama-3.2-3B-Instruct
+
+# Exported — all subsequent commands skip the venv
+export LLPM_NO_VENV=1
+llmpm install meta-llama/Llama-3.2-3B-Instruct
+llmpm serve meta-llama/Llama-3.2-3B-Instruct
+```
+
+> When using `LLPM_NO_VENV=1`, install all backends first: `pip install llmpm[all]`
+
+**Custom model storage location:**
+
+```sh
+LLMPM_HOME=/mnt/models llmpm install meta-llama/Llama-3.2-3B-Instruct
+LLMPM_HOME=/mnt/models llmpm serve meta-llama/Llama-3.2-3B-Instruct
+```
+
+**Use a specific Python binary (npm installs):**
+
+```sh
+LLPM_PYTHON=/usr/bin/python3.11 llmpm run meta-llama/Llama-3.2-3B-Instruct
+```
+
+**Combining variables:**
+
+```sh
+HF_TOKEN=hf_your_token LLMPM_HOME=/data/models LLPM_NO_VENV=1 \
+  llmpm install meta-llama/Llama-3.2-3B-Instruct
+```
+
+**Docker / CI example:**
+
+```dockerfile
+ENV LLPM_NO_VENV=1
+ENV HF_TOKEN=hf_your_token
+RUN pip install llmpm[all]
+RUN llmpm install meta-llama/Llama-3.2-3B-Instruct
+CMD ["llmpm", "serve", "meta-llama/Llama-3.2-3B-Instruct", "--host", "0.0.0.0"]
+```
 
 ---
 
