@@ -54,6 +54,8 @@ llmpm run meta-llama/Llama-3.2-3B-Instruct
 llmpm serve meta-llama/Llama-3.2-3B-Instruct
 ```
 
+![llmpm demo](https://res.cloudinary.com/dehc0rbua/image/upload/v1772781378/LLMPMDemo_fuckwk.gif)
+
 ---
 
 ## Commands
@@ -169,6 +171,8 @@ In **local mode** (when `llmpm.json` is present) they go into `.llmpm/models/`.
 ## `llmpm run`
 
 `llmpm run` auto-detects the model type and launches the appropriate interactive session. It supports text generation, image generation, vision, speech-to-text (ASR), and text-to-speech (TTS) models.
+
+![llmpm run](https://res.cloudinary.com/dehc0rbua/image/upload/v1772781378/LLMPMrunprompt_vc72qd.gif)
 
 ### Text generation (GGUF & Transformers)
 
@@ -288,6 +292,8 @@ If detection is ambiguous the model falls back to the text-generation backend.
 Start a **single** local HTTP server exposing one or more models as an OpenAI-compatible REST API.
 A browser-based chat UI is available at `/chat`.
 
+![llmpm serve](https://res.cloudinary.com/dehc0rbua/image/upload/v1772781377/LLMPMservemultimodels_m5ahlv.gif)
+
 ```sh
 # Serve a single model on the default port (8080)
 llmpm serve meta-llama/Llama-3.2-3B-Instruct
@@ -393,6 +399,38 @@ curl -X POST http://localhost:8080/v1/audio/speech \
   -d '{"input": "Hello world"}' \
   --output speech.wav
 ```
+
+Response shape for chat completions (non-streaming):
+
+```json
+{
+  "object": "chat.completion",
+  "model": "<model-id>",
+  "choices": [{
+    "index": 0,
+    "message": { "role": "assistant", "content": "<text>" },
+    "finish_reason": "stop"
+  }],
+  "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0 }
+}
+```
+
+Response shape for chat completions (streaming SSE):
+
+Each chunk:
+```json
+{
+  "object": "chat.completion.chunk",
+  "model": "<model-id>",
+  "choices": [{
+    "index": 0,
+    "delta": { "content": "<token>" },
+    "finish_reason": null
+  }]
+}
+```
+
+Followed by a final `data: [DONE]` sentinel.
 
 Response shape for image generation:
 
