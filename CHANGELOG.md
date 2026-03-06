@@ -4,6 +4,34 @@ All notable changes to llmpm are documented in this file.
 
 Format: [Keep a Changelog](https://keepachangelog.com) · Versioning: [SemVer](https://semver.org)
 
+## [2.2.1] - 2026-03-06
+
+### Documentation
+
+- Replace videos with CDN served gifs in Readme.ms
+
+## [2.2.0] - 2026-03-06
+
+### Added
+
+- **Chat UI redesign** — pixel/retro-terminal aesthetic with orange accent (`#FF6A00`), Space Grotesk body font, Press Start 2P logo, JetBrains Mono for code; new CSS variable design system with dark, light, matrix, and amber themes
+- **Conversation history sidebar** — left rail lists all past conversations newest-first; click any entry to resume it; delete individual conversations with the × button; collapsible via the hamburger toggle in the header
+- **IndexedDB persistence** — conversations are stored in `llmpm-chat` IndexedDB; history survives page refresh and browser restart
+- **Auto-title** — conversation title is set from the first 55 characters of the opening user message
+- **Image attachments for text-generation models** — the paperclip button now appears for text-generation (instead of image-generation); attached images are forwarded to the LLM as OpenAI-style vision content parts (`image_url`)
+- Subtle pixel-grid background across the chat UI
+
+### Fixed
+
+- Arrow-key navigation broken in Windows CMD/PowerShell for `install`, `run`, and `serve` model pickers — all three now bypass `questionary` entirely on Windows and fall back to the reliable numbered `click.prompt` list
+
+### Documentation
+
+- Added demo video to Quick Start section
+- Added demo video to `llmpm run` section
+- Added demo video to `llmpm serve` section
+- Documented response shapes for chat completions (non-streaming and streaming SSE) and image generation in the `llmpm serve` API reference
+
 ## [2.1.3] - 2026-03-02
 
 ### Added
