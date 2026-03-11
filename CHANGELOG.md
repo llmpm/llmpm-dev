@@ -4,6 +4,58 @@ All notable changes to llmpm are documented in this file.
 
 Format: [Keep a Changelog](https://keepachangelog.com) · Versioning: [SemVer](https://semver.org)
 
+## [3.1.0] 2026-03-10
+
+### Added
+
+- **`--path` option for `llmpm run`** — run any locally downloaded model without installing it via `llmpm install`. Accepts a `.gguf` file or a HuggingFace-style model directory. Model type is auto-detected (GGUF if `.gguf` files are present, otherwise the appropriate transformers/diffusion/audio backend is chosen from `config.json`). The `repo_id` argument becomes optional when `--path` is provided; the directory/file name is used as the display label if omitted.
+
+  ```sh
+  llmpm run --path ~/Downloads/mistral-7b-q4.gguf
+  llmpm run --path ~/models/whisper-base --prompt recording.wav
+  llmpm run my-label --path /data/models/llama-3
+  ```
+
+- **`--path` option for `llmpm serve`** — serve models from arbitrary local paths without the registry. The flag is repeatable to load multiple custom-path models alongside (or instead of) registry models.
+
+  ```sh
+  llmpm serve --path ~/models/mistral.gguf
+  llmpm serve --path ~/models/llama --path ~/models/whisper
+  llmpm serve meta-llama/Llama-3.2-3B-Instruct --path ~/models/custom
+  ```
+
+  A `Running/Serving model from local path: <path>` notice is printed at startup when `--path` is used.
+
+---
+
+## [3.0.1] 2026-03-09
+
+### Added
+
+- **`llmpm benchmark`** — new command to run LLM evaluation benchmarks against any installed model
+  - 60+ tasks across commonsense, knowledge, math, code, reading comprehension, instruction following, multilingual, safety, and more
+  - Leaderboard suite shortcuts: `openllm` (v1) and `leaderboard` (v2) — `leaderboard` is a bundled group that mirrors the official HF v2 suite but replaces the gated `leaderboard_gpqa` sub-task with the open `gpqa` mirror, so no HuggingFace token is needed
+  - GGUF support — auto-starts `llmpm serve` and points lm_eval at the local API
+  - Bundled open-dataset custom tasks: `gpqa` (open mirror via `casimiir/gpqa`), `hle` (Humanity's Last Exam via `skylenage/HLE-Verified`), and `leaderboard` (v2 leaderboard without gated data) — no HuggingFace token required
+  - Auto-installs missing lm-eval optional extras (e.g. `lm-eval[math]`) on first failure and retries automatically
+  - Generates a self-contained HTML report after each run; filenames include model, tasks, and timestamp (`report_<model>_<tasks>_<timestamp>.html`) so successive runs never overwrite each other
+  - `--list-tasks` output ordered by real-world usage frequency
+- **`llmpm trending`** — displays top 5 trending models by likes for text-generation and text-to-image, with download counts, like counts, and links to `llmpm.co`
+- **`llmpm search`** — detail view now links to `https://llmpm.co/models/<repo>` instead of HuggingFace
+
+## [2.2.3] 2026-03-09
+
+### Added
+
+- **`llmpm trending`** — new command that displays the top 5 trending models by likes for both text-generation and text-to-image categories, with download counts, like counts, and direct links to `llmpm.co`
+- **llmpm.co model URLs** — `llmpm search` detail view now links to `https://llmpm.co/models/<repo>` instead of HuggingFace
+
+## [2.2.2] - 2026-03-06
+
+### Added
+
+- Add support to install package via brew
+
 ## [2.2.1] - 2026-03-06
 
 ### Documentation
