@@ -36,6 +36,13 @@ npm install -g llmpm
 
 The npm package finds Python on your PATH, creates `~/.llmpm/venv`, and installs all backends into it during `postinstall`.
 
+### via Homebrew
+
+```sh
+brew tap llmpm/llmpm
+brew install llmpm
+```
+
 ### Environment isolation
 
 All `llmpm` commands always run inside `~/.llmpm/venv`.
@@ -68,7 +75,10 @@ llmpm serve meta-llama/Llama-3.2-3B-Instruct
 | `llmpm run <repo>`              | Run an installed model (interactive chat)                       |
 | `llmpm serve [repo] [repo] ...` | Serve one or more models as an OpenAI-compatible API            |
 | `llmpm serve`                   | Serve every installed model on a single HTTP server             |
+| `llmpm benchmark <repo>`        | Run evaluation benchmarks against an installed model            |
 | `llmpm push <repo>`             | Upload a model to HuggingFace Hub                               |
+| `llmpm search <query>`          | Search HuggingFace Hub for models                               |
+| `llmpm trending`                | Show top trending models by likes (text-gen & text-to-image)    |
 | `llmpm list`                    | Show all installed models                                       |
 | `llmpm info <repo>`             | Show details about a model                                      |
 | `llmpm uninstall <repo>`        | Uninstall a model                                               |
@@ -253,6 +263,26 @@ llmpm run suno/bark-small
 
 > Requires: `pip install transformers torch`
 
+### Running a model from a local path
+
+Use `--path` to run a model that was not installed via `llmpm install` — for
+example, a model you downloaded manually or trained yourself.
+
+```sh
+# Run a GGUF file directly
+llmpm run --path ~/Downloads/mistral-7b-q4.gguf
+
+# Run a HuggingFace-style model directory
+llmpm run --path ~/models/whisper-base --prompt recording.wav
+
+# Optional: give the model a display label
+llmpm run my-llama --path /data/models/llama-3
+```
+
+`--path` accepts either a `.gguf` file or a directory. The model type is
+auto-detected (GGUF if the path contains `.gguf` files, otherwise the
+transformers/diffusion/audio backend is chosen from `config.json`).
+
 ### `llmpm run` options
 
 | Option            | Default  | Description                                             |
@@ -263,6 +293,7 @@ llmpm run suno/bark-small
 | `--ctx`           | `128000` | Context window size (GGUF only)                         |
 | `--gpu-layers`    | `-1`     | GPU layers to offload, `-1` = all (GGUF only)           |
 | `--verbose`       | off      | Show model loading output                               |
+| `--path`          | —        | Path to a local model dir or `.gguf` file (bypasses registry) |
 
 ### Interactive session commands
 
@@ -312,6 +343,16 @@ llmpm serve meta-llama/Llama-3.2-3B-Instruct --max-tokens 2048
 
 # GGUF model — tune context window and GPU layers
 llmpm serve unsloth/Llama-3.2-3B-Instruct-GGUF --ctx 8192 --gpu-layers 32
+
+# Serve a model from a local path (bypasses registry)
+llmpm serve --path ~/models/mistral-7b-q4.gguf
+llmpm serve --path ~/models/llama-3
+
+# Mix registry models and local paths
+llmpm serve meta-llama/Llama-3.2-3B-Instruct --path ~/models/custom-model
+
+# Serve multiple local-path models
+llmpm serve --path ~/models/llama --path ~/models/whisper
 ```
 
 Fuzzy model-name matching is applied to each argument — if multiple installed models match you will be prompted to pick one.
@@ -325,6 +366,7 @@ Fuzzy model-name matching is applied to each argument — if multiple installed 
 | `--max-tokens`  | `128000`    | Default max tokens per response (overridable per-request) |
 | `--ctx`         | `128000`    | Context window size (GGUF only)                           |
 | `--gpu-layers`  | `-1`        | GPU layers to offload, `-1` = all (GGUF only)             |
+| `--path`        | —           | Path to a local model dir or `.gguf` file (repeatable, bypasses registry) |
 
 ### Multi-model routing
 
@@ -406,11 +448,13 @@ Response shape for chat completions (non-streaming):
 {
   "object": "chat.completion",
   "model": "<model-id>",
-  "choices": [{
-    "index": 0,
-    "message": { "role": "assistant", "content": "<text>" },
-    "finish_reason": "stop"
-  }],
+  "choices": [
+    {
+      "index": 0,
+      "message": { "role": "assistant", "content": "<text>" },
+      "finish_reason": "stop"
+    }
+  ],
   "usage": { "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0 }
 }
 ```
@@ -418,15 +462,18 @@ Response shape for chat completions (non-streaming):
 Response shape for chat completions (streaming SSE):
 
 Each chunk:
+
 ```json
 {
   "object": "chat.completion.chunk",
   "model": "<model-id>",
-  "choices": [{
-    "index": 0,
-    "delta": { "content": "<token>" },
-    "finish_reason": null
-  }]
+  "choices": [
+    {
+      "index": 0,
+      "delta": { "content": "<token>" },
+      "finish_reason": null
+    }
+  ]
 }
 ```
 
@@ -440,6 +487,152 @@ Response shape for image generation:
   "data": [{ "b64_json": "<base64-png>" }]
 }
 ```
+
+---
+
+## `llmpm search`
+
+Search HuggingFace Hub for models matching a keyword or phrase.
+
+```sh
+llmpm search <query>
+```
+
+Results are displayed in a table with model ID, task, download count, like count, and tags.
+
+```sh
+# Basic search
+llmpm search llama
+
+# Filter by pipeline task
+llmpm search mistral --task text-generation
+
+# Filter by library
+llmpm search whisper --library transformers
+
+# Sort results (downloads, likes, lastModified, trending)
+llmpm search stable-diffusion --sort likes
+
+# Limit number of results (default: 20)
+llmpm search gemma --limit 10
+
+# View detailed info for a result interactively
+llmpm search llama --info
+```
+
+### `llmpm search` options
+
+| Option             | Default     | Description                                                                                       |
+| ------------------ | ----------- | ------------------------------------------------------------------------------------------------- |
+| `--task` / `-t`    | —           | Filter by pipeline task (e.g. `text-generation`, `text-to-image`, `automatic-speech-recognition`) |
+| `--library` / `-l` | —           | Filter by library (e.g. `transformers`, `gguf`, `diffusers`)                                      |
+| `--sort` / `-s`    | `downloads` | Sort by `downloads`, `likes`, `lastModified`, or `trending`                                       |
+| `--limit` / `-n`   | `20`        | Maximum number of results to display                                                              |
+| `--info`           | off         | Immediately prompt to view detailed info for a result                                             |
+
+After results are shown you will be asked if you want to view details for a specific model. Selecting one fetches the full model card from HuggingFace and shows author, task, license, languages, file list, tags, and a link to `llmpm.co`.
+
+---
+
+## `llmpm trending`
+
+Show the top trending models by likes & downloads, grouped by category.
+
+```sh
+llmpm trending
+```
+
+Displays two sections — **Text Generation** and **Text to Image** — each listing the top 5 models with download counts, like counts, and a link to the model page on [llmpm.co](https://llmpm.co/models).
+
+![Trending Models](https://res.cloudinary.com/dehc0rbua/image/upload/v1773036798/Screenshot_2026-03-09_at_11.43.07_AM_bru3nm.png)
+
+## `llmpm benchmark`
+
+Run standard evaluation benchmarks against an installed mode.
+
+### Installation
+
+The benchmark backend is an optional dependency — install it separately to keep the base `llmpm` footprint small:
+
+```sh
+pip install llmpm[benchmark]
+```
+
+### Usage
+
+```sh
+# Run a single benchmark
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks ifeval
+
+# Run multiple benchmarks in one pass
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks ifeval,hellaswag,mmlu
+
+# Run the full Open LLM Leaderboard v1 suite
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks openllm
+
+# Run the full Open LLM Leaderboard v2 (open datasets, no gated data)
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks leaderboard
+
+# Benchmark GPT-2 on HellaSwag (no install needed — pulled directly from HuggingFace)
+llmpm benchmark pretrained=gpt2 --tasks hellaswag
+
+# With 10-shot prompting
+llmpm benchmark pretrained=gpt2 --tasks hellaswag --num-fewshot 10
+
+# Limit to 200 examples for a quick test
+llmpm benchmark pretrained=gpt2 --tasks hellaswag --limit 200
+
+# Save a full HTML report to ./results/
+llmpm benchmark pretrained=gpt2 --tasks hellaswag --output ./results/
+
+# Limit examples for a quick smoke test
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks mmlu --limit 100
+
+# Save results + HTML report to a directory
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks ifeval --output ./results/
+# → writes ./results/report.html with a full breakdown of metrics and run config
+
+# Run Humanity's Last Exam (bundled open dataset)
+llmpm benchmark meta-llama/Llama-3.2-3B-Instruct --tasks hle
+
+# List all supported benchmarks
+llmpm benchmark --list-tasks
+```
+
+### `llmpm benchmark` options
+
+| Option                 | Default      | Description                                                   |
+| ---------------------- | ------------ | ------------------------------------------------------------- |
+| `--tasks` / `-t`       | required     | Comma-separated task or group names (e.g. `ifeval,hellaswag`) |
+| `--num-fewshot` / `-n` | task default | Override few-shot count for all tasks                         |
+| `--limit` / `-l`       | —            | Limit examples per task (integer = count, `<1.0` = fraction)  |
+| `--batch-size` / `-b`  | `auto`       | Inference batch size                                          |
+| `--device`             | auto         | PyTorch device override (e.g. `cpu`, `cuda:0`)                |
+| `--output` / `-o`      | —            | Directory to write results; generates `report.html` inside it |
+| `--list-tasks`         | —            | Print all supported benchmark tasks and exit                  |
+
+### Supported benchmarks
+
+| Category                  | Tasks                                                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Leaderboard suites**    | `openllm` (ARC · HellaSwag · TruthfulQA · MMLU · Winogrande · GSM8K), `leaderboard` (IFEval · BBH · MATH Hard · GPQA · MuSR · MMLU-Pro — all open datasets), `tinyBenchmarks`, `metabench` |
+| **Commonsense**           | `hellaswag`, `winogrande`, `wsc273`, `piqa`, `siqa`, `openbookqa`, `commonsense_qa`, `logiqa`, `logiqa2`, `babi`, `swag`                                                                   |
+| **Knowledge**             | `mmlu`, `mmlu_pro`, `truthfulqa`, `triviaqa`, `nq_open`, `webqs`, `sciq`, `agieval`, `ceval`, `cmmlu`, `kmmlu`                                                                             |
+| **Reading comprehension** | `race`, `squadv2`, `drop`, `coqa`, `super_glue`, `glue`                                                                                                                                    |
+| **Math & reasoning**      | `arc_easy`, `arc_challenge`, `gsm8k`, `gsm_plus`, `hendrycks_math`, `minerva_math`, `mathqa`, `arithmetic`, `asdiv`, `bbh`, `bigbench`, `anli`                                             |
+| **Code**                  | `humaneval`, `mbpp`                                                                                                                                                                        |
+| **Instruction following** | `ifeval`                                                                                                                                                                                   |
+| **Long context**          | `longbench`                                                                                                                                                                                |
+| **Language modeling**     | `wikitext`, `lambada`                                                                                                                                                                      |
+| **Medical & science**     | `medqa`, `medmcqa`, `pubmedqa`                                                                                                                                                             |
+| **Safety & bias**         | `wmdp`, `bbq`, `crows_pairs`, `hendrycks_ethics`, `realtoxicityprompts`                                                                                                                    |
+| **Multilingual**          | `xnli`, `xcopa`, `xwinograd`, `belebele`, `mgsm`, `global_mmlu`, `okapi`                                                                                                                   |
+| **Summarization**         | `cnn_dailymail`                                                                                                                                                                            |
+| **Bundled (custom)**      | `gpqa`, `hle`                                                                                                                                                                              |
+
+> **Report:** After every successful run, `llmpm benchmark` writes a `report.html` to the `--output` directory (or the current directory if omitted). The report includes a results table with per-metric scores and ± stderr, plus the full run configuration.
+
+Run `llmpm benchmark --list-tasks` for the full list with descriptions.
 
 ---
 
